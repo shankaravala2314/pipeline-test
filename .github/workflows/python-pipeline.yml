@@ -2,16 +2,11 @@ name: Test Pipeline
 
 on:
   push:
-    branches:
-      - main
 
 jobs:
-  test:
+  hello:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Test Message
-        run: echo "Pipeline is working successfully"
+      - name: Print Message
+        run: echo "GitHub Actions is working"
