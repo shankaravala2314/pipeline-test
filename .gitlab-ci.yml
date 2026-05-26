@@ -1,0 +1,234 @@
+stages:
+  - validate
+  - test
+  - build
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PYTHONUNBUFFERED: "1"
+
+cache:
+  paths:
+    - .cache/pip
+
+before_script:
+  - echo "========================================="
+  - echo "PIPELINE STARTED"
+  - echo "========================================="
+  - echo "Project Name        $CI_PROJECT_NAME"
+  - echo "Branch              $CI_COMMIT_REF_NAME"
+  - echo "Commit SHA          $CI_COMMIT_SHA"
+  - echo "Short Commit SHA    $CI_COMMIT_SHORT_SHA"
+  - echo "Triggered By        $GITLAB_USER_NAME"
+  - echo "Pipeline ID         $CI_PIPELINE_ID"
+  - echo "Pipeline URL        $CI_PIPELINE_URL"
+  - echo "Runner Description  $CI_RUNNER_DESCRIPTION"
+  - echo "Runner Tags         $CI_RUNNER_TAGS"
+  - |
+    echo "Current Directory   $(pwd)"
+  - |
+    echo "Hostname            $(hostname)"
+  - |
+    echo "Execution Time      $(date)"
+  - echo "========================================="
+
+validate:
+  stage: validate
+  tags:
+    - eco-runner-1
+
+  script:
+    - echo ""
+    - echo "========================================="
+    - echo "VALIDATION STAGE STARTED"
+    - echo "========================================="
+
+    - echo ""
+    - echo "[1/8] Listing Repository Files"
+    - ls -lah
+
+    - echo ""
+    - echo "[2/8] Checking Critical Files"
+
+    - |
+      if [ ! -f "Dockerfile" ]; then
+        echo "ERROR: Dockerfile missing"
+        exit 1
+      fi
+
+    - |
+      if [ ! -d "tests" ]; then
+        echo "ERROR: tests directory missing"
+        exit 1
+      fi
+
+    - echo "Critical structure validation passed"
+
+    - echo ""
+    - echo "[3/8] Detecting Changed Python Files"
+
+    - |
+      echo "Changed files:"
+      git diff --name-only $CI_COMMIT_BEFORE_SHA $CI_COMMIT_SHA || true
+
+    - |
+      echo ""
+      echo "Changed Python files:"
+      git diff --name-only $CI_COMMIT_BEFORE_SHA $CI_COMMIT_SHA | grep '\.py$' || echo "No Python file changes detected"
+
+    - echo ""
+    - echo "[4/8] Python Version"
+    - python3 --version
+
+    - echo ""
+    - echo "[5/8] Pip Version"
+    - pip3 --version
+
+    - echo ""
+    - echo "[6/8] Checking Python Syntax"
+
+    - |
+      find . -name "*.py" -print0 | while IFS= read -r -d '' file
+      do
+        echo "Checking syntax: $file"
+        python3 -m py_compile "$file"
+      done
+
+    - echo ""
+    - echo "[7/8] Environment File Validation"
+
+    - |
+      if [ -f "requirements.txt" ]; then
+        echo "requirements.txt found"
+      elif [ -f "environment.yml" ]; then
+        echo "environment.yml found"
+      else
+        echo "ERROR: No dependency file found"
+        exit 1
+      fi
+
+    - echo ""
+    - echo "[8/8] Validation Completed Successfully"
+
+    - echo ""
+    - echo "========================================="
+    - echo "VALIDATION STAGE COMPLETED"
+    - echo "========================================="
+
+test:
+  stage: test
+  tags:
+    - eco-runner-1
+
+  script:
+    - echo ""
+    - echo "========================================="
+    - echo "TEST STAGE STARTED"
+    - echo "========================================="
+
+    - echo ""
+    - echo "[1/9] Creating Virtual Environment"
+    - python3 -m venv venv
+
+    - echo ""
+    - echo "[2/9] Activating Virtual Environment"
+    - source venv/bin/activate
+
+    - echo ""
+    - echo "[3/9] Upgrading pip"
+    - pip install --upgrade pip
+
+    - echo ""
+    - echo "[4/9] Installing Dependencies"
+
+    - |
+      if [ -f "requirements.txt" ]; then
+        pip install -r requirements.txt
+      elif [ -f "environment.yml" ]; then
+        echo "environment.yml detected"
+        echo "Conda-based setup currently not automated"
+        exit 1
+      fi
+
+    - echo ""
+    - echo "[5/9] Installed Packages"
+    - pip list
+
+    - echo ""
+    - echo "[6/9] Running Import Validation"
+
+    - |
+      python3 -c "
+      print('Starting import validation')
+      import os, sys
+      print('Python executable:', sys.executable)
+      print('Python version:', sys.version)
+      print('Basic import validation completed')
+      "
+
+    - echo ""
+    - echo "[7/9] Running Tests"
+
+    - |
+      if [ -d "tests" ]; then
+        pytest tests/ -v
+      else
+        echo "No tests directory found"
+        exit 1
+      fi
+
+    - echo ""
+    - echo "[8/9] Test Stage Completed"
+
+    - echo ""
+    - echo "[9/9] Cleaning Temporary Files"
+    - deactivate || true
+
+    - echo ""
+    - echo "========================================="
+    - echo "TEST STAGE COMPLETED"
+    - echo "========================================="
+
+build:
+  stage: build
+  tags:
+    - eco-runner-1
+
+  script:
+    - echo ""
+    - echo "========================================="
+    - echo "BUILD STAGE STARTED"
+    - echo "========================================="
+
+    - echo ""
+    - echo "[1/4] Creating Build Directory"
+    - mkdir -p build_artifacts
+
+    - echo ""
+    - echo "[2/4] Creating Release Archive"
+
+    - |
+      tar \
+        --exclude='.git' \
+        --exclude='venv' \
+        --exclude='__pycache__' \
+        --exclude='.pytest_cache' \
+        -czf build_artifacts/frs-api-$CI_COMMIT_SHORT_SHA.tar.gz .
+
+    - echo ""
+    - echo "[3/4] Listing Generated Artifacts"
+    - ls -lah build_artifacts/
+
+    - echo ""
+    - echo "[4/4] Build Completed Successfully"
+
+    - echo ""
+    - echo "========================================="
+    - echo "BUILD STAGE COMPLETED"
+    - echo "========================================="
+
+  artifacts:
+    name: "frs-api-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - build_artifacts/
+    expire_in: 7 days
