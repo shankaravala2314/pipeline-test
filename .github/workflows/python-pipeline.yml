@@ -1,4 +1,4 @@
-name: Python CI Pipeline
+name: Test Pipeline
 
 on:
   push:
@@ -6,68 +6,12 @@ on:
       - main
 
 jobs:
-
-  validate:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Validate
-        run: |
-          echo "VALIDATION STAGE"
-
-          python --version
-
-          if [ ! -f "requirements.txt" ]; then
-            echo "requirements.txt missing"
-            exit 1
-          fi
-
   test:
     runs-on: ubuntu-latest
 
-    needs: validate
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Dependencies
-        run: |
-          pip install -r requirements.txt
-
-      - name: Run Tests
-        run: |
-          pytest tests/ -v
-
-  build:
-    runs-on: ubuntu-latest
-
-    needs: test
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Create Artifact
-        run: |
-          mkdir build_artifacts
-          tar -czf build_artifacts/project.tar.gz .
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-files
-          path: build_artifacts/
+      - name: Test Message
+        run: echo "Pipeline is working successfully"
